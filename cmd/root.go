@@ -15,6 +15,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "dsu [day|week|month]",
 	Short: "查询 DeepSeek 余额和消费",
+	Args:  cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		window := ""
 		if len(args) > 0 {
