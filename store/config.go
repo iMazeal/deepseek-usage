@@ -1,22 +1,20 @@
 package store
 
-import "database/sql"
+import "path/filepath"
+
+func configPath() string { return filepath.Join(dataDir, "config.json") }
 
 func SetConfig(key, value string) error {
-	_, err := db.Exec(
-		"INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
-		key, value,
-	)
-	return err
+	cfg := map[string]string{}
+	load(configPath(), &cfg)
+	cfg[key] = value
+	return save(configPath(), cfg)
 }
 
 func GetConfig(key string) (string, error) {
-	var value string
-	err := db.QueryRow(
-		"SELECT value FROM config WHERE key = ?", key,
-	).Scan(&value)
-	if err == sql.ErrNoRows {
-		return "", nil
+	cfg := map[string]string{}
+	if err := load(configPath(), &cfg); err != nil {
+		return "", err
 	}
-	return value, err
+	return cfg[key], nil
 }
