@@ -38,25 +38,30 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		var lastMap map[string]float64
+		var lastTime, label string
+
+		switch window {
+		case "":
+			lastRecords, ts, _ := store.LastRecords()
+			lastMap, lastTime, label = recordsToMap(lastRecords), ts, "距上次花费"
+		case "day":
+			lastMap, lastTime, label = windowRecords(24*time.Hour, "近24h花费")
+		case "week":
+			lastMap, lastTime, label = windowRecords(7*24*time.Hour, "近7天花费")
+		case "month":
+			lastMap, lastTime, label = windowRecords(30*24*time.Hour, "近30天花费")
+		default:
+			lastRecords, ts, _ := store.LastRecords()
+			lastMap, lastTime, label = recordsToMap(lastRecords), ts, "距上次花费"
+		}
+
 		if err := store.InsertRecords(current); err != nil {
 			fmt.Fprintln(os.Stderr, "数据库错误:", err)
 			os.Exit(1)
 		}
 
-		switch window {
-		case "":
-			lastRecords, lastTime, _ := store.LastRecords()
-			display.Print(current, recordsToMap(lastRecords), lastTime, "距上次花费")
-		case "day":
-			showWindow(current, 24*time.Hour, "近24h花费")
-		case "week":
-			showWindow(current, 7*24*time.Hour, "近7天花费")
-		case "month":
-			showWindow(current, 30*24*time.Hour, "近30天花费")
-		default:
-			lastRecords, lastTime, _ := store.LastRecords()
-			display.Print(current, recordsToMap(lastRecords), lastTime, "距上次花费")
-		}
+		display.Print(current, lastMap, lastTime, label)
 	},
 }
 
@@ -68,7 +73,7 @@ func recordsToMap(records []store.Record) map[string]float64 {
 	return m
 }
 
-func showWindow(current map[string]float64, duration time.Duration, label string) {
+func windowRecords(duration time.Duration, label string) (map[string]float64, string, string) {
 	records, err := store.RecordsSince(duration)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "数据库错误:", err)
@@ -76,8 +81,7 @@ func showWindow(current map[string]float64, duration time.Duration, label string
 	}
 
 	if len(records) == 0 {
-		display.Print(current, nil, "", "")
-		return
+		return nil, "", label
 	}
 
 	earliest := make(map[string]float64)
@@ -91,7 +95,7 @@ func showWindow(current map[string]float64, duration time.Duration, label string
 		}
 	}
 
-	display.Print(current, earliest, earliestTime, label)
+	return earliest, earliestTime, label
 }
 
 func Execute() {
