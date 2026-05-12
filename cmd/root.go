@@ -38,26 +38,25 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		lastRecords, lastTime, err := store.LastRecords()
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "数据库错误:", err)
-			os.Exit(1)
-		}
-
 		if err := store.InsertRecords(current); err != nil {
 			fmt.Fprintln(os.Stderr, "数据库错误:", err)
 			os.Exit(1)
 		}
 
-		lastMap := recordsToMap(lastRecords)
-
-		label, showConsumption := resolveWindow(window, lastTime)
-		if !showConsumption {
-			lastMap = nil
-			lastTime = ""
+		switch window {
+		case "":
+			lastRecords, lastTime, _ := store.LastRecords()
+			display.Print(current, recordsToMap(lastRecords), lastTime, "距上次花费")
+		case "day":
+			showWindow(current, 24*time.Hour, "近24h花费")
+		case "week":
+			showWindow(current, 7*24*time.Hour, "近7天花费")
+		case "month":
+			showWindow(current, 30*24*time.Hour, "近30天花费")
+		default:
+			lastRecords, lastTime, _ := store.LastRecords()
+			display.Print(current, recordsToMap(lastRecords), lastTime, "距上次花费")
 		}
-
-		display.Print(current, lastMap, lastTime, label)
 	},
 }
 
@@ -69,47 +68,30 @@ func recordsToMap(records []store.Record) map[string]float64 {
 	return m
 }
 
-func resolveWindow(window, lastTime string) (label string, show bool) {
-	if window == "" {
-		return "距上次花费", true
-	}
-
-	if lastTime == "" {
-		switch window {
-		case "day":
-			return "近24h花费", false
-		case "week":
-			return "近7天花费", false
-		case "month":
-			return "近30天花费", false
-		}
-	}
-
-	t, err := time.Parse(time.RFC3339, lastTime)
+func showWindow(current map[string]float64, duration time.Duration, label string) {
+	records, err := store.RecordsSince(duration)
 	if err != nil {
-		return "距上次花费", false
+		fmt.Fprintln(os.Stderr, "数据库错误:", err)
+		os.Exit(1)
 	}
-	elapsed := time.Since(t)
 
-	switch window {
-	case "day":
-		if elapsed <= 24*time.Hour {
-			return "近24h花费", true
-		}
-		return "近24h花费", false
-	case "week":
-		if elapsed <= 7*24*time.Hour {
-			return "近7天花费", true
-		}
-		return "近7天花费", false
-	case "month":
-		if elapsed <= 30*24*time.Hour {
-			return "近30天花费", true
-		}
-		return "近30天花费", false
-	default:
-		return "距上次花费", true
+	if len(records) == 0 {
+		display.Print(current, nil, "", "")
+		return
 	}
+
+	earliest := make(map[string]float64)
+	var earliestTime string
+	for _, r := range records {
+		if _, ok := earliest[r.Currency]; !ok {
+			earliest[r.Currency] = r.TotalBalance
+		}
+		if earliestTime == "" || r.CreatedAt < earliestTime {
+			earliestTime = r.CreatedAt
+		}
+	}
+
+	display.Print(current, earliest, earliestTime, label)
 }
 
 func Execute() {

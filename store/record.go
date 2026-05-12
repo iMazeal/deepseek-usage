@@ -26,6 +26,28 @@ func InsertRecords(balances map[string]float64) error {
 	return nil
 }
 
+func RecordsSince(d time.Duration) ([]Record, error) {
+	since := time.Now().UTC().Add(-d).Format(time.RFC3339)
+	rows, err := db.Query(
+		"SELECT id, created_at, currency, total_balance FROM records WHERE created_at >= ? ORDER BY created_at, currency",
+		since,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var records []Record
+	for rows.Next() {
+		var r Record
+		if err := rows.Scan(&r.ID, &r.CreatedAt, &r.Currency, &r.TotalBalance); err != nil {
+			return nil, err
+		}
+		records = append(records, r)
+	}
+	return records, rows.Err()
+}
+
 func LastRecords() ([]Record, string, error) {
 	var ts string
 	err := db.QueryRow(
